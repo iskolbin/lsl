@@ -48,7 +48,7 @@ Lua stream library
 
 ## String operators
 * sl'~' -- unary minus ( negation )
-* sl'+', sl'-', sl'/', sl'%', sl'^', sl'\*', sl'#', .. -- same as Lua
+* sl'+', sl'-', sl'/', sl'%', sl'^', sl'\*', sl'#', sl'..' -- same as Lua
 * sl'//' -- integer division (floor( a/b ))
 * sl'++', sl'\--' -- increment/decrement
 * sl'and', sl'or', sl'not' -- logical operators
@@ -64,3 +64,9 @@ Lua stream library
 
 ## String lambdas
 * sl( string )
+
+## Example
+```lua
+print( sl.iter{1,2,3,4}:sum() ) -- 10
+print( sl.iter{1,2,3,4}:map( sl'x+1' ):filter( sl'even?' ):toarray() -- {2,4}
+```
