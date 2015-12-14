@@ -456,7 +456,6 @@ local Operators = {
 	['~='] = function( a, b ) return a ~= b end,
 	['>'] = function( a, b ) return a > b end,
 	['>='] = function( a, b ) return a >= b end,
-	['equal?'] = function( a, b ) return equal( a, b ) end, 
 	['nil?'] = function( a ) return a == nil end,
 	['zero?'] = function( a ) return a == 0 end,
 	['positive?'] = function( a ) return a > 0 end,
