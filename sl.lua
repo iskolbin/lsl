@@ -1,32 +1,75 @@
+-- Lua Stream Library
+-- by Ilya Kolbin (iskolbin@gmail.com)
+-- many ideas taken from Luafun library (see https://github.com/rtsisyk/luafun)
+--
+-- Common usage pattern is: sl.<generator>:<transform>:<transform>...:<fold>
+-- For example: sl.iter{1,2,3,4,5}:map( sl'x+1' ):filter( sl'odd?' ):sum() -- evals to 3+5=8
+-- 
+-- Library functions is very efficient when used in LuaJIT.
+-- In LuaJIT performance is close to handwritten low-level code with for loops and if-s.
+-- In vanilla Lua performace is not so good, but reasonable. 
+-- Main advantage is small memory overhead because collections is not copied on every transformation.
+--
+-- Addtionaly includes some useful functions for chained inplace array transorfmation.
+-- For small functions its possible to use string lambdas like sl'x+2' or sl'x<1'.
+-- There is some predefinied string functions like sl'+' or sl'>' or sl'even?'.
+-- 
+-- Simple yet powerful match function included for structural pattern matching.
+-- Variables and wildcards are supported.
+-- (for more powerful lib consider https://github.com/silentbicycle/tamale).
+-- 
+-- Minimal tostring with recursion handling is included for debugging reasons 
+-- (for more powerful lib consider https://github.com/kikito/inspect.lua). 
+--
+-- Works with Lua 5.1 (and LuaJIT), 5.2, 5.3
+
 local load, unpack = load or loadstring, table.unpack or unpack -- Lua 5.1 compatibility
-local setmetatable, select, next, type, pairs, assert = setmetatable, select, next, type, pairs, assert
+local getmetatable, setmetatable, select, next, type, pairs, assert = getmetatable, setmetatable, select, next, type, pairs, assert
 
 local Wild = {}
 local Rest = {}
+local Var = {}
+local RestVar = {}
+local KVRestVar = {}
 
-local function equal( itable1, itable2 )
-	if itable1 == itable2 then
+local function equal( itable1, itable2, matchtable )
+	if itable1 == itable2 or itable2 == Wild or itable2 == Rest then
+		return true
+	elseif getmetatable( itable2 ) == Var then
+		matchtable[itable2[1]] = itable1
 		return true
 	else
 		local t1, t2 = type( itable1 ), type( itable2 )
-		if t1 == t2 then
-			if itable2 == Wild or itable2 == Rest then
-				return true
-			elseif t1 == 'table' then
-				local n1 = 0; for _, _ in pairs( itable1 ) do n1 = n1 + 1 end
-				local n2 = 0; for _, _ in pairs( itable2 ) do n2 = n2 + 1 end
-				if n1 == n2 or itable2[#itable2] == Rest then
-					for k, v in pairs( itable2 ) do
-						if v == Wild or v == Rest then
-							return true
-						elseif itable1[k] == nil or not equal( itable1[k], v ) then
-							return false
+		if t1 == t2 and t1 == 'table' then
+			local n1 = 0; for _, _ in pairs( itable1 ) do n1 = n1 + 1 end
+			local n2 = 0; for _, _ in pairs( itable2 ) do n2 = n2 + 1 end
+			local last2 = itable2[#itable2]
+			local mt2 = getmetatable( last2 )
+			if n1 == n2 or last2 == Rest or mt2 == RestVar or mt2 == KVRestVar then
+				for k, v in pairs( itable2 ) do
+					if v == Rest then
+						return true
+					elseif getmetatable( v ) == KVRestVar then
+						local rest = {[k] = itable1[k]}
+						for k_, v_ in next, itable1, k do
+							rest[k_] = v_
 						end
+						matchtable[v[1]] = rest
+						return true
+					elseif getmetatable( v ) == RestVar then
+						local rest = {itable1[k]}
+						for _, v_ in next, itable1, k do
+							rest[#rest+1] = v_
+						end
+						matchtable[v[1]] = rest
+						return true
+					elseif itable1[k] == nil or not equal( itable1[k], v, matchtable ) then
+						return false
 					end
-					return true
-				else
-					return false
 				end
+				return true
+			else
+				return false
 			end
 		else
 			return false
@@ -37,8 +80,6 @@ end
 local TableMt
 
 local Table = {
-	equal = equal,
-
 	sort = function( iarray, cmp )
 		table.sort( iarray, cmp )
 		return iarray
@@ -470,8 +511,6 @@ local Operators = {
 	['table?'] = function( a ) return type( a ) == 'table' end,
 	['userdata?'] = function( a ) return type( a ) == 'userdata' end,
 	['thread?'] = function( a ) return type( a ) == 'thread' end,
-	['_'] = Wild,
-	['...'] = Rest,
 }
 
 local function evalrangeargs( init, limit, step )
@@ -495,6 +534,48 @@ local function evalsubargs( table, init, limit, step )
 		return init, limit, step
 	else
 		error('bad initial variables for generator')
+	end
+end
+
+local function tostring_( arg, saved, ident )
+	local t = type( arg )
+	local saved, ident = saved or {n = 0, recursive = {}}, ident or 0
+	if t == 'nil' or t == 'boolean' or t == 'number' or t == 'function' or t == 'userdata' or t == 'thread' then
+		return tostring( arg )
+	elseif t == 'string' then
+		return ('%q'):format( arg )
+	else
+		if saved[arg] then
+			saved.recursive[arg] = true
+			return '<table rec:' .. saved[arg] .. '>'
+		else
+			saved.n = saved.n + 1
+			saved[arg] = saved.n
+			local mt = getmetatable( arg )
+			if mt ~= nil and mt.__tostring then
+				return mt.__tostring( arg )
+			else
+				local ret = {}
+				local na = #arg
+				for i = 1, na do
+					ret[i] = tostring_( arg[i], saved, ident )
+				end
+				local tret = {}
+				local nt = 0					
+				for k, v in pairs(arg) do
+					if not ret[k] then
+						nt = nt + 1
+						tret[nt] = (' '):rep(ident+1) .. tostring_( k, saved, ident + 1 ) .. ' => ' .. tostring_( v, saved, ident + 1 )
+					end
+				end
+				local retc = table.concat( ret, ',' )
+				local tretc = table.concat( tret, ',\n' )
+				if tretc ~= '' then
+					tretc = '\n' .. tretc
+				end
+				return '{' .. retc .. ( retc ~= '' and tretc ~= '' and ',' or '') .. tretc .. (saved.recursive[arg] and (' <' .. saved[arg] .. '>}') or '}' )
+			end
+		end
 	end
 end
 
@@ -529,6 +610,24 @@ local Stream = {
 	wrap = function( table )
 		return setmetatable( table, TableMt )
 	end,
+
+	tostring = tostring_,
+
+	equal = equal,
+	wild = Wild,
+	rest = Rest,
+	match = function( a, b )
+		acc = setmetatable( {}, TableMt )
+		local result = equal( a, b, acc ) 
+		if result then
+			return acc
+		else
+			return result
+		end
+	end,
+	var = function( str ) return setmetatable( {str}, Var ) end,
+	restvar = function( str ) return setmetatable( {str}, RestVar ) end,
+	kvrestvar = function( str ) return setmetatable( {str}, KVRestVar ) end,
 }
 
 local LambdaCache = setmetatable( {}, {__mode = 'kv'} )

@@ -1,14 +1,17 @@
 sl = require'sl'
 
 local function assertq( a, b )
-	return assert(sl'equal?'( a, b ))
+	return assert(sl.equal( a, b ))
 end
 
 assertq( 1, 1 )
 assertq( {1,2}, {1,2} )
 assertq( {1,2,x = 1}, {1,2,x = 1} )
-assertq( {1,2,3,4}, {1,2,sl'_',4} )
-assertq( {1,2,3,4,5,6}, {1,2,3,sl'...'} )
+assertq( {1,2,3,4}, {1,2,sl.wild,4} )
+assertq( {1,2,3,4,5,6}, {1,2,3,sl.rest} )
+assertq( {1,2,3,4,5,6}, {1,2,3,sl.wild,5,sl.wild} )
+assert( not sl.equal( {1,2,3,4,5,6}, {1,2,3,sl.wild,8,9} ))
+assertq( {1,2,3,4,5,6,7}, {1,2,sl.wild,4,5,sl.rest} )
 
 assertq( sl.range(10):toarray(), {1,2,3,4,5,6,7,8,9,10} )
 assertq( sl.range(2,10):toarray(), {2,3,4,5,6,7,8,9,10} )
@@ -91,5 +94,11 @@ assertq( sl.wrap( t ):keyof( 5 ), 'x' )
 
 print('shuffle')
 sl.wrap{1,2,3,4,5,6,7,8}:shuffle(math.random):iter():each(print)
+
+assertq( sl.match({1,2,3,4}, {1,2,sl.wild,4}), {} )
+assertq( sl.match({1,2,3,4}, {1,5,3,sl.wild}), false )
+assertq( sl.match({1,2,3,4}, {1,2,3,sl.var'X'}), {X = 4} )
+assertq( sl.match({1,2,3,4}, {1,2,sl.restvar'X'}), {X={3,4}} )
+assertq( sl.match({1,2,3,4}, {1,2,sl.kvrestvar'X'}), {X = {[3] = 3,[4] = 4}} )
 
 print('all passed')
