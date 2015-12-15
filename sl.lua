@@ -8,9 +8,9 @@
 -- Library functions is very efficient when used in LuaJIT.
 -- In LuaJIT performance is close to handwritten low-level code with for loops and if-s.
 -- In vanilla Lua performace is not so good, but reasonable. 
--- Main advantage is small memory overhead because collections is not copied on every transformation.
+-- Main advantage is small memory overhead because collections are not copied on every transformation.
 --
--- Addtionaly includes some useful functions for chained inplace array transorfmation.
+-- Addtionaly includes some useful functions for chained inplace array transorfmations.
 -- For small functions its possible to use string lambdas like sl'x+2' or sl'x<1'.
 -- There is some predefinied string functions like sl'+' or sl'>' or sl'even?'.
 -- 
@@ -18,7 +18,7 @@
 -- Variables and wildcards are supported.
 -- (for more powerful lib consider https://github.com/silentbicycle/tamale).
 -- 
--- Minimal tostring with recursion handling is included for debugging reasons 
+-- Minimal pretty-printing tostring with recursion handling is included for debugging reasons 
 -- (for more powerful lib consider https://github.com/kikito/inspect.lua). 
 --
 -- Works with Lua 5.1 (and LuaJIT), 5.2, 5.3
