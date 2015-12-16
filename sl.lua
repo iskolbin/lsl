@@ -30,7 +30,6 @@ local Wild = {}
 local Rest = {}
 local Var = {}
 local RestVar = {}
-local KVRestVar = {}
 
 local function equal( itable1, itable2, matchtable )
 	if itable1 == itable2 or itable2 == Wild or itable2 == Rest then
@@ -45,16 +44,9 @@ local function equal( itable1, itable2, matchtable )
 			local n2 = 0; for _, _ in pairs( itable2 ) do n2 = n2 + 1 end
 			local last2 = itable2[#itable2]
 			local mt2 = getmetatable( last2 )
-			if n1 == n2 or last2 == Rest or mt2 == RestVar or mt2 == KVRestVar then
+			if n1 == n2 or last2 == Rest or mt2 == RestVar then
 				for k, v in pairs( itable2 ) do
 					if v == Rest then
-						return true
-					elseif getmetatable( v ) == KVRestVar then
-						local rest = {[k] = itable1[k]}
-						for k_, v_ in next, itable1, k do
-							rest[k_] = v_
-						end
-						matchtable[v[1]] = rest
 						return true
 					elseif getmetatable( v ) == RestVar then
 						local rest = {itable1[k]}
@@ -627,7 +619,6 @@ local Stream = {
 	end,
 	var = function( str ) return setmetatable( {str}, Var ) end,
 	restvar = function( str ) return setmetatable( {str}, RestVar ) end,
-	kvrestvar = function( str ) return setmetatable( {str}, KVRestVar ) end,
 }
 
 local LambdaCache = setmetatable( {}, {__mode = 'kv'} )
