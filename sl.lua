@@ -8,9 +8,11 @@
 -- Library functions is very efficient when used in LuaJIT.
 -- In LuaJIT performance is close to handwritten low-level code with for loops and if-s.
 -- In vanilla Lua performace is not so good, but reasonable. 
--- Main advantage is small memory overhead because collections are not copied on every transformation.
+-- Main advantage is small memory overhead because collections are not copied on every transformation,
+-- instead small stateful generators are created.
 --
--- Addtionaly includes some useful functions for chained inplace array transorfmations.
+-- Addtionaly includes some useful functions for chained inplace array/table transorfmations.
+--
 -- For small functions its possible to use string lambdas like sl'x+2' or sl'x<1'.
 -- There is some predefinied string functions like sl'+' or sl'>' or sl'even?'.
 -- 
@@ -35,8 +37,14 @@ local function equal( itable1, itable2, matchtable )
 	if itable1 == itable2 or itable2 == Wild or itable2 == Rest then
 		return true
 	elseif getmetatable( itable2 ) == Var then
-		matchtable[itable2[1]] = itable1
-		return true
+		if not itable2[2] or itable2[2]( itable1 ) then
+			if matchtable then
+				matchtable[itable2[1]] = itable1
+			end
+			return true
+		else
+			return false
+		end
 	else
 		local t1, t2 = type( itable1 ), type( itable2 )
 		if t1 == t2 and t1 == 'table' then
@@ -53,8 +61,14 @@ local function equal( itable1, itable2, matchtable )
 						for _, v_ in next, itable1, k do
 							rest[#rest+1] = v_
 						end
-						matchtable[v[1]] = rest
-						return true
+						if not v[2] or v[2]( rest ) then
+							if matchtable then
+								matchtable[v[1]] = rest
+							end
+							return true
+						else
+							return false
+						end
 					elseif itable1[k] == nil or not equal( itable1[k], v, matchtable ) then
 						return false
 					end
@@ -94,14 +108,6 @@ local Table = {
 		return iarray
 	end,
 
-	copy = function( iarray )
-		local oarray = setmetatable( {}, TableMt )
-		for i = 1, #iarray do
-			oarray[i] = iarray[i]
-		end
-		return oarray
-	end,
-	
 	indexof = function( iarray, v, cmp )
 		if not cmp then
 			for i = 1, #iarray do
@@ -127,7 +133,7 @@ local Table = {
 		end
 	end,
 	
-	tcopy = function( itable )
+	copy = function( itable )
 		local otable = setmetatable( {}, TableMt )
 		for k, v in pairs( itable ) do
 			otable[k] = v
@@ -144,6 +150,11 @@ local Table = {
 	end,
 	
 	concat = table.concat,
+	unpack = table.unpack or unpack,
+	setmetatable = function( itable, mt )
+		setmetatable( itable, mt )
+		return itable
+	end,
 }
 
 local Generator = {
@@ -503,6 +514,8 @@ local Operators = {
 	['table?'] = function( a ) return type( a ) == 'table' end,
 	['userdata?'] = function( a ) return type( a ) == 'userdata' end,
 	['thread?'] = function( a ) return type( a ) == 'thread' end,
+	['id?'] = function( a ) return type( a ) == 'string' and a:match('^[%a_][%w_]*') ~= nil end,
+	['empty?'] = function( a ) return next( a ) == nil end,
 }
 
 local function evalrangeargs( init, limit, step )
@@ -606,20 +619,53 @@ local Stream = {
 	tostring = tostring_,
 
 	equal = equal,
-	wild = Wild,
-	rest = Rest,
-	match = function( a, b )
-		acc = setmetatable( {}, TableMt )
+	match = function( a, b, ... )
+		acc = {}
 		local result = equal( a, b, acc ) 
 		if result then
-			return acc
+			return setmetatable( acc, FnMT )
 		else
+			local n = select( '#', ... )
+			for i = 1, n do
+				acc = next( acc ) == nil and acc or {}
+				result = equal( a, select( i, ... ), acc )
+				if result then 
+					return setmetatable( acc, FnMT )
+				end
+			end
 			return result
 		end
 	end,
-	var = function( str ) return setmetatable( {str}, Var ) end,
-	restvar = function( str ) return setmetatable( {str}, RestVar ) end,
+	var = function( str, p ) return setmetatable( {str,p}, Var ) end,
+	restvar = function( str, p ) return setmetatable( {str,p}, RestVar ) end,
+	_ = Wild,
+	___ = Rest,
+
+	ltall = function( a, b )
+		local function lt( a, b )
+			return a < b
+		end
+
+		local ok, res = pcall( lt, a, b )
+		if ok then
+			return res
+		else
+			local t1, t2 = type( a ), type( b )
+			if t1 ~= t2 then
+				return t1 < t2
+			else
+				return tostring( a ) < tostring( b )
+			end
+		end
+	end,
 }
+
+Stream.X = Stream.var'X'
+Stream.Y = Stream.var'Y'
+Stream.Z = Stream.var'Z'
+Stream.N = Stream.var( 'N', Operators['number?'] )
+Stream.S = Stream.var( 'S', Operators['string?'] )
+Stream.R = Stream.restvar'R'
 
 local LambdaCache = setmetatable( {}, {__mode = 'kv'} )
 

@@ -1,17 +1,23 @@
 sl = require'sl'
 
 local function assertq( a, b )
-	return assert(sl.equal( a, b ))
+	if not sl.equal( a, b ) then
+		print('FAIL')
+		print( sl.tostring( a ) )
+		print('NOT EQUAL TO')
+		print( sl.tostring( b ))
+		error()
+	end
 end
 
 assertq( 1, 1 )
 assertq( {1,2}, {1,2} )
 assertq( {1,2,x = 1}, {1,2,x = 1} )
-assertq( {1,2,3,4}, {1,2,sl.wild,4} )
-assertq( {1,2,3,4,5,6}, {1,2,3,sl.rest} )
-assertq( {1,2,3,4,5,6}, {1,2,3,sl.wild,5,sl.wild} )
-assert( not sl.equal( {1,2,3,4,5,6}, {1,2,3,sl.wild,8,9} ))
-assertq( {1,2,3,4,5,6,7}, {1,2,sl.wild,4,5,sl.rest} )
+assertq( {1,2,3,4}, {1,2,sl._,4} )
+assertq( {1,2,3,4,5,6}, {1,2,3,sl.___} )
+assertq( {1,2,3,4,5,6}, {1,2,3,sl._,5,sl._} )
+assert( not sl.equal( {1,2,3,4,5,6}, {1,2,3,sl._,8,9} ))
+assertq( {1,2,3,4,5,6,7}, {1,2,sl._,4,5,sl.___} )
 
 assertq( sl.range(10):toarray(), {1,2,3,4,5,6,7,8,9,10} )
 assertq( sl.range(2,10):toarray(), {2,3,4,5,6,7,8,9,10} )
@@ -87,18 +93,27 @@ local x = {1,2,3,4}
 assert( sl.wrap( x ):copy() ~= x )
 
 local t = {x = 5, y = 2, 1, 2 }
-assert( sl.wrap( t ):tcopy() ~= t )
+assert( sl.wrap( t ):copy() ~= t )
 
-assertq( sl.wrap( t ):tcopy(), {x = 5, y = 2, 1, 2 } )
+assertq( sl.wrap( t ):copy(), {x = 5, y = 2, 1, 2 } )
 assertq( sl.wrap( t ):keyof( 5 ), 'x' )
 
 print('shuffle')
 sl.wrap{1,2,3,4,5,6,7,8}:shuffle(math.random):iter():each(print)
 
-assertq( sl.match({1,2,3,4}, {1,2,sl.wild,4}), {} )
-assertq( sl.match({1,2,3,4}, {1,5,3,sl.wild}), false )
+assertq( sl.match({1,2,3,4}, {1,2,sl._,4}), {} )
+assertq( sl.match({1,2,3,4}, {1,5,3,sl._}), false )
 assertq( sl.match({1,2,3,4}, {1,2,3,sl.var'X'}), {X = 4} )
 assertq( sl.match({1,2,3,4}, {1,2,sl.restvar'X'}), {X={3,4}} )
-assertq( sl.match({1,2,3,4}, {1,2,sl.kvrestvar'X'}), {X = {[3] = 3,[4] = 4}} )
 
+assertq( sl.match({1,2,3,4,5}, {1,2,sl.X,sl.___}), {X=3} )
+
+assertq( sl.match({1,2,3,4,5},
+	{2,4,5,7},
+	{6,1,sl.___},
+	{1,sl.Y,2},
+	{1,2,sl._,sl.Z,5,sl.___},
+	{1,2,3,4,5}), {Z = 4} )
+
+assertq( sl.wrap{1,'x',5,6,{1}}:sort( sl.ltall ), {1,5,6,'x',{1}} ) 
 print('all passed')
