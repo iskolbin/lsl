@@ -91,8 +91,8 @@ local Table = {
 		return iarray
 	end,
  
-	shuffle = function( iarray, rand )
-		local rand = rand or math.random
+	shuffle = function( iarray, rand_ )
+		local rand = rand_ or math.random
 		for i = #iarray, 1, -1 do
 			local j = rand( i )
 			iarray[j], iarray[i] = iarray[i], iarray[j]
@@ -120,7 +120,7 @@ local Table = {
 				error('bad argument #2 to indexof ( function expected for binary search, or nil for linear search )' )
 			end
 
-			local init, limit = 1, #iarray, 0
+			local init, limit = 1, #iarray
 			local floor = math.floor
 			while init <= limit do
 				local mid = floor( 0.5*(init+limit))
@@ -447,7 +447,7 @@ local function pairsnext( self )
 end
 
 local function keysnext( self )
-	local key, value = next( self[2], self.k )
+	local key, _ = next( self[2], self.k )
 	if key ~= nil then
 		self.k = key
 		return reccall( self, 3, true, key )
@@ -518,8 +518,8 @@ local Operators = {
 	['empty?'] = function( a ) return next( a ) == nil end,
 }
 
-local function evalrangeargs( init, limit, step )
-	local init, limit, step = init, limit, step
+local function evalrangeargs( init_, limit_, step_ )
+	local init, limit, step = init_, limit_, step_
 	if not limit then init, limit = init > 0 and 1 or -1, init end
 	if not step then step = init < limit and 1 or -1 end
 	if (init <= limit and step > 0) or (init >= limit and step < 0) then
@@ -529,9 +529,9 @@ local function evalrangeargs( init, limit, step )
 	end
 end
 
-local function evalsubargs( table, init, limit, step )
+local function evalsubargs( table, init_, limit_, step_ )
 	local len = #table
-	local init, limit, step = init or 1, limit or len, step
+	local init, limit, step = init_ or 1, limit_ or len, step_
 	if init < 0 then init = len + init + 1 end
 	if limit < 0 then limit = len + init + 1 end
 	if not step then step = init < limit and 1 or -1 end
@@ -542,9 +542,9 @@ local function evalsubargs( table, init, limit, step )
 	end
 end
 
-local function tostring_( arg, saved, ident )
+local function tostring_( arg, saved_, ident_ )
 	local t = type( arg )
-	local saved, ident = saved or {n = 0, recursive = {}}, ident or 0
+	local saved, ident = saved_ or {n = 0, recursive = {}}, ident_ or 0
 	if t == 'nil' or t == 'boolean' or t == 'number' or t == 'function' or t == 'userdata' or t == 'thread' then
 		return tostring( arg )
 	elseif t == 'string' then
@@ -585,31 +585,31 @@ local function tostring_( arg, saved, ident )
 end
 
 local Stream = {
-	range = function( init, limit, step )
-		local init, limit, step = evalrangeargs( init, limit, step )
-		return setmetatable( {step > 0 and rangenext or rrangenext,init,limit,step}, GeneratorMt )
+	range = function( init_, limit_, step_ )
+		local init, limit, step = evalrangeargs( init_, limit_, step_ )
+		return setmetatable( {step > 0 and rangenext or rrangenext, init, limit, step}, GeneratorMt )
 	end,
 
-	iter = function( table, init, limit, step )
-		local init, limit, step = evalsubargs( table, init, limit, step )
-		return setmetatable( {step > 0 and iternext or riternext,table,init,limit,step}, GeneratorMt ) 
+	iter = function( table, init_, limit_, step_ )
+		local init, limit, step = evalsubargs( table, init_, limit_, step_ )
+		return setmetatable( {step > 0 and iternext or riternext, table, init, limit, step}, GeneratorMt ) 
 	end,
 	
-	ipairs = function( table, init, limit, step ) 
-		local init, limit, step = evalsubargs( table, init, limit, step )
-		return setmetatable( {step > 0 and ipairsnext or ripairsnext,table,init,limit,step}, GeneratorMt ) 
+	ipairs = function( table, init_, limit_, step_ ) 
+		local init, limit, step = evalsubargs( table, init_, limit_, step_ )
+		return setmetatable( {step > 0 and ipairsnext or ripairsnext, table, init, limit, step}, GeneratorMt ) 
 	end,
 	
 	pairs = function( table ) 
-		return setmetatable( {pairsnext,table}, GeneratorMt )
+		return setmetatable( {pairsnext, table}, GeneratorMt )
 	end,
 	
 	keys = function( table ) 
-		return setmetatable( {keysnext,table}, GeneratorMt ) 
+		return setmetatable( {keysnext, table}, GeneratorMt ) 
 	end,
 	
 	values = function( table ) 
-		return setmetatable( {valuesnext,table}, GeneratorMt )
+		return setmetatable( {valuesnext, table}, GeneratorMt )
 	end,
 
 	wrap = function( table )
@@ -620,30 +620,30 @@ local Stream = {
 
 	equal = equal,
 	match = function( a, b, ... )
-		acc = {}
+		local acc = {}
 		local result = equal( a, b, acc ) 
 		if result then
-			return setmetatable( acc, FnMT )
+			return setmetatable( acc, TableMt )
 		else
 			local n = select( '#', ... )
 			for i = 1, n do
 				acc = next( acc ) == nil and acc or {}
 				result = equal( a, select( i, ... ), acc )
 				if result then 
-					return setmetatable( acc, FnMT )
+					return setmetatable( acc, TableMt )
 				end
 			end
 			return result
 		end
 	end,
-	var = function( str, p ) return setmetatable( {str,p}, Var ) end,
-	restvar = function( str, p ) return setmetatable( {str,p}, RestVar ) end,
+	var = function( str, p ) return setmetatable( {str, p}, Var ) end,
+	restvar = function( str, p ) return setmetatable( {str, p}, RestVar ) end,
 	_ = Wild,
 	___ = Rest,
 
 	ltall = function( a, b )
-		local function lt( a, b )
-			return a < b
+		local function lt( a_, b_ )
+			return a_ < b_
 		end
 
 		local ok, res = pcall( lt, a, b )
@@ -669,7 +669,7 @@ Stream.R = Stream.restvar'R'
 
 local LambdaCache = setmetatable( {}, {__mode = 'kv'} )
 
-local function lambda( self, k )
+local function lambda( _, k )
 	local f = Operators[k] or LambdaCache[k]
 	if not f then
 		f = assert(load( 'return function(x,y,z,...) return ' .. k .. ' end' ))()

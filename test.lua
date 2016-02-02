@@ -1,4 +1,4 @@
-sl = require'sl'
+local sl = require'sl'
 
 local function assertq( a, b )
 	if not sl.equal( a, b ) then
