@@ -1,5 +1,35 @@
 # lsl
 Lua stream library
+many ideas taken from Luafun library (see https://github.com/rtsisyk/luafun)
+
+Common usage pattern is: 
+```lua
+sl.<generator>:<transform>:<transform>...:<fold>
+```
+
+For example: 
+```lua
+sl.iter{1,2,3,4,5}:map( sl'x+1' ):filter( sl'odd?' ):sum() -- evals to 3+5=8
+```
+
+Library functions is very efficient when used in LuaJIT.
+In LuaJIT performance is close to handwritten low-level code with for loops and if-s.
+In vanilla Lua performace is not so good, but reasonable. 
+Main advantage is small memory overhead because collections are not copied on every transformation,
+instead small stateful generators are created.
+
+Addtionaly includes some useful functions for chained inplace array/table transorfmations.
+For small functions its possible to use string lambdas like **sl'x+2'** or **sl'x<1'**.
+There is some predefinied string functions like **sl'+'** or **sl'>'** or **sl'even?'**.
+
+Simple yet powerful **match** function included for __structural pattern matching__.
+Variables and wildcards are supported.
+(for more powerful lib consider https://github.com/silentbicycle/tamale).
+ 
+Minimal pretty-printing **tostring** with recursion handling is included for debugging reasons 
+(for more powerful lib consider https://github.com/kikito/inspect.lua). 
+
+Works with Lua 5.1 (and LuaJIT), 5.2, 5.3.
 
 ## Generators
 * sl.range( init or limit[, limit=#array, step=1] )
@@ -60,7 +90,16 @@ Lua stream library
 
 ## String special equal symbols
 * sl'\_' -- wild symbol
-* sl'...' -- rest symbol
+* sl'___' -- rest symbol
+
+## Build-in captures
+* sl.X
+* sl.Y
+* sl.Z
+* sl.R -- rest
+* sl.N -- numbers only
+* sl.S -- strings only
+* sl.B -- booleans only
 
 ## String lambdas
 * sl( string )
