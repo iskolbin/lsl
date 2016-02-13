@@ -343,7 +343,7 @@ local Generator = {
 			return acc
 		end
 
-		return self:reduce( tablefold, {} ) 
+		return self:reduce( tablefold, setmetatable( {}, TableMt )) 
 	end,
 	
 	toarray = function( self )
@@ -352,7 +352,7 @@ local Generator = {
 			return acc
 		end
 
-		return self:reduce( arrayfold, setmetatable( {}, TableMt ) )
+		return self:reduce( arrayfold, setmetatable( {}, TableMt ))
 	end,
 
 	sum = function( self, acc_ )
