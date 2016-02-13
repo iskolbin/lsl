@@ -65,6 +65,9 @@ Works with Lua 5.1 (and LuaJIT), 5.2, 5.3.
 ## Special functions
 * sl.wrap( table )
 * sl.equal( a, b )
+* sl.match( a, b[,...] )
+* sl.tostring( x )
+* sl.ltall( a, b ) -- comparsion of objects of **any** type
 
 ## Additional in-place table functions
 * sort( table[, cmp=lessthan] )
@@ -73,8 +76,10 @@ Works with Lua 5.1 (and LuaJIT), 5.2, 5.3.
 * copy( table )
 * indexof( table, v[, cmp=nil] )
 * keyof( table, v )
-* copy( array )
-* tcopy( table )
+* copy( table/array )
+* concat
+* unpack
+* setmetatable
 
 ## String operators
 * sl'~' -- unary minus ( negation )
@@ -88,9 +93,13 @@ Works with Lua 5.1 (and LuaJIT), 5.2, 5.3.
 * sl'nil?', sl'number?', sl'boolean?', sl'string?', sl'function?', sl'table?', sl'userdata?', sl'thread?' -- type predicates
 * sl'integer?' -- integer predicate: floor( a ) == a
 
-## String special equal symbols
+## Wild symbols for matching
 * sl'\_' -- wild symbol
 * sl'___' -- rest symbol
+
+## Defining captures
+* sl.var( name[, predicate] )
+* sl.restvar( name[, predicate] )
 
 ## Build-in captures
 * sl.X
@@ -104,7 +113,7 @@ Works with Lua 5.1 (and LuaJIT), 5.2, 5.3.
 ## String lambdas
 * sl( string )
 
-## Example
+Example
 ```lua
 print( sl.iter{1,2,3,4}:sum() ) -- 10
 print( sl.iter{1,2,3,4}:map( sl'x+1' ):filter( sl'even?' ):toarray() -- {2,4}
