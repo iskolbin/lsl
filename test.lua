@@ -121,18 +121,14 @@ local N = 10
 
 local factorial = sl.dispatch()
 
---[[factorial:def( {1}, 
+factorial:def( {1}, 
 	function( _ )
 		return 1
 	end)
-]]--
+
 factorial:def( {sl.N},
 	function( n )
-		if n <= 1 then
-			return 1
-		else
 		return n * factorial( n - 1 )
-		end
 	end)
 
 local t1
