@@ -116,4 +116,57 @@ assertq( sl.match({1,2,3,4,5},
 	{1,2,3,4,5}), {Z = 4} )
 
 assertq( sl.wrap{1,'x',5,6,{1}}:sort( sl.ltall ), {1,5,6,'x',{1}} ) 
+
+local N = 10
+
+local factorial = sl.dispatch()
+
+--[[factorial:def( {1}, 
+	function( _ )
+		return 1
+	end)
+]]--
+factorial:def( {sl.N},
+	function( n )
+		if n <= 1 then
+			return 1
+		else
+		return n * factorial( n - 1 )
+		end
+	end)
+
+local t1
+
+t1 = os.clock()
+print( factorial( N ))
+print( 'Multiple dispatch:', os.clock() - t1 )
+
+local function factTailRec( n, acc )
+	if n <= 1 then
+		return acc
+	else
+		return factTailRec( n-1, acc*n )
+	end
+end
+
+t1 = os.clock()
+print( factTailRec( N, 1 ))
+print( 'Tail recursive:', os.clock() - t1 )
+
+local function factDirect( n )
+	if n <= 1 then
+		return 1
+	else
+		local acc = 1
+		for i = 2, n do
+			acc = acc * i
+		end
+		return acc
+	end
+end
+
+t1 = os.clock()
+print( factDirect( N ))
+print( 'Direct:', os.clock() - t1 )
+
 print('all passed')

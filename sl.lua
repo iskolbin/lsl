@@ -1,7 +1,7 @@
 -- Lua Stream Library
 -- by Ilya Kolbin (iskolbin@gmail.com)
 
-local load, unpack = load or loadstring, table.unpack or unpack -- Lua 5.1 compatibility
+local loadstring, unpack = loadstring, table.unpack or unpack -- Lua 5.1 compatibility
 local getmetatable, setmetatable, select, next, type, pairs, assert = getmetatable, setmetatable, select, next, type, pairs, assert
 
 local Wild = {}
@@ -10,6 +10,7 @@ local Var = {}
 local RestVar = {}
 local TableMt
 local GeneratorMt
+local MultipleDispatchMt
 
 local function equal( itable1, itable2, matchtable )
 	if itable1 == itable2 or itable2 == Wild or itable2 == Rest then
@@ -653,11 +654,60 @@ local LambdaCache = setmetatable( {}, {__mode = 'kv'} )
 local function lambda( _, k )
 	local f = Operators[k] or LambdaCache[k]
 	if not f then
-		f = assert(load( 'return function(x,y,z,...) return ' .. k .. ' end' ))()
+		f = assert(loadstring( 'return function(x,y,z,...) return ' .. k .. ' end' ))()
 		LambdaCache[k] = f
 	end
 	return f
 end
+
+local MultipleDispatchFunctions = {}
+
+function Stream.dispatch( name )
+	return MultipleDispatchFunctions[name] or setmetatable( {}, MultipleDispatchMt )
+end
+
+local MultipleDispatch = {}
+
+function MultipleDispatch.def( self, predicates, func, meta )
+	local fs = MultipleDispatchFunctions[self]
+	if not fs then
+		MultipleDispatchFunctions[self] = {predicates,func,meta or false}
+	else
+		local n = #fs
+		for i = 1, n, 3 do
+			if equal( predicates, fs[i] ) then
+				if meta and meta.override then
+					fs[i] = predicates
+					fs[i+1] = func
+					fs[i+2] = meta or false
+					return self
+				else
+					error( 'Override ' .. tostringx( self ) .. ' with same predicates ' .. tostringx( predicates ))
+				end
+			end
+		end
+		
+		fs[n+1] = predicates
+		fs[n+2] = func
+		fs[n+3] = meta or false
+	end
+	return self
+end
+
+local function callMultipleDispatch( self, ... )
+	local fs = MultipleDispatchFunctions[self]
+	for i = 1, #fs, 3 do
+		if equal( {...}, fs[i] ) then
+			return fs[i+1]( ... )
+		end
+	end
+	error( 'No appropriate function implementation found!' .. '\nFunc:' .. tostringx( self ) .. '\nArgs:' .. tostringx(...) )
+end
+
+MultipleDispatchMt = {
+	__index = MultipleDispatch, 
+	__call = callMultipleDispatch
+}
 
 GeneratorMt = {__index = Generator}
 TableMt = { __index = Table }
