@@ -1,7 +1,7 @@
 -- Lua Stream Library
 -- by Ilya Kolbin (iskolbin@gmail.com)
 
-local loadstring, unpack = loadstring, table.unpack or unpack -- Lua 5.1 compatibility
+local loadstring, unpack = loadstring or load, unpack or table.unpack -- Lua 5.1 compatibility
 local getmetatable, setmetatable, select, next, type, pairs, assert = getmetatable, setmetatable, select, next, type, pairs, assert
 
 local Wild = {}
@@ -10,16 +10,60 @@ local Var = {}
 local RestVar = {}
 local TableMt
 local GeneratorMt
-local MultipleDispatchMt
+local PredicateDispatchMt
 
-local function equal( itable1, itable2, matchtable )
+local function equal( itable1, itable2 )
+	if itable1 == itable2 or itable2 == Wild or itable2 == Rest then
+		return true
+	elseif getmetatable( itable2 ) == Var then
+		return not itable2[2] or itable2[2]( itable1 )
+	else
+		local t1, t2 = type( itable1 ), type( itable2 )
+		if t1 == t2 and t1 == 'table' then
+			local k1, k2 = next( itable1 ), next( itable2 )
+
+			while k1 ~= nil and k2 ~= nil do
+				k1, k2 = next( itable1, k1 ), next( itable2, k2 )
+			end
+
+			local last2 = itable2[#itable2]
+			if (k1 == nil and k2 == nil) or last2 == Rest or getmetatable( last2 ) == RestVar then
+				for k, v in pairs( itable2 ) do
+					local v1 = itable1[k]
+					if v1 ~= v then
+						if v == Rest then
+							return true
+						elseif getmetatable( v ) == RestVar then
+							if v[2] then
+								local rest = {v1}
+								for _, v_ in next, itable1, k do
+									rest[#rest+1] = v_
+								end
+								return v[2]( rest )
+							else
+								return true
+							end
+						elseif itable1[k] == nil or not equal( v1, v ) then
+							return false
+						end
+					end
+				end
+				return true
+			else
+				return false
+			end
+		else
+			return false
+		end
+	end
+end
+
+local function match( itable1, itable2, matchtable )
 	if itable1 == itable2 or itable2 == Wild or itable2 == Rest then
 		return true
 	elseif getmetatable( itable2 ) == Var then
 		if not itable2[2] or itable2[2]( itable1 ) then
-			if matchtable then
-				matchtable[itable2[1]] = itable1
-			end
+			matchtable[itable2[1]] = itable1
 			return true
 		else
 			return false
@@ -33,22 +77,21 @@ local function equal( itable1, itable2, matchtable )
 			local mt2 = getmetatable( last2 )
 			if n1 == n2 or last2 == Rest or mt2 == RestVar then
 				for k, v in pairs( itable2 ) do
+					local v1 = itable1[k]
 					if v == Rest then
 						return true
 					elseif getmetatable( v ) == RestVar then
-						local rest = {itable1[k]}
+						local rest = {v1}
 						for _, v_ in next, itable1, k do
 							rest[#rest+1] = v_
 						end
 						if not v[2] or v[2]( rest ) then
-							if matchtable then
-								matchtable[v[1]] = rest
-							end
+							matchtable[v[1]] = rest
 							return true
 						else
 							return false
 						end
-					elseif itable1[k] == nil or not equal( itable1[k], v, matchtable ) then
+					elseif itable1[k] == nil or not match( v1, v, matchtable ) then
 						return false
 					end
 				end
@@ -61,7 +104,6 @@ local function equal( itable1, itable2, matchtable )
 		end
 	end
 end
-
 
 local Table = {}
 
@@ -597,14 +639,14 @@ Stream.equal = equal
 
 function Stream.match( a, b, ... )
 	local acc = {}
-	local result = equal( a, b, acc ) 
+	local result = match( a, b, acc ) 
 	if result then
 		return setmetatable( acc, TableMt )
 	else
 		local n = select( '#', ... )
 		for i = 1, n do
 			acc = next( acc ) == nil and acc or {}
-			result = equal( a, select( i, ... ), acc )
+			result = match( a, select( i, ... ), acc )
 			if result then 
 				return setmetatable( acc, TableMt )
 			end
@@ -660,53 +702,62 @@ local function lambda( _, k )
 	return f
 end
 
-local MultipleDispatchFunctions = {}
+local PredicateDispatchFunctions = {}
 
 function Stream.dispatch( name )
-	return MultipleDispatchFunctions[name] or setmetatable( {}, MultipleDispatchMt )
+	return PredicateDispatchFunctions[name] or setmetatable( {}, PredicateDispatchMt )
 end
 
-local MultipleDispatch = {}
+local PredicateDispatch = {}
 
-function MultipleDispatch.def( self, predicates, func, meta )
-	local fs = MultipleDispatchFunctions[self]
+function PredicateDispatch.def( self, predicates, func, meta )
+	local fs = PredicateDispatchFunctions[self]
 	if not fs then
-		MultipleDispatchFunctions[self] = {predicates,func,meta or false}
+		PredicateDispatchFunctions[self] = {{predicates,func,meta or false}}
 	else
 		local n = #fs
-		for i = 1, n, 3 do
+		for i = 1, n do
 			if equal( predicates, fs[i] ) then
 				if meta and meta.override then
-					fs[i] = predicates
-					fs[i+1] = func
-					fs[i+2] = meta or false
+					fs[i] = {predicates,func,meta or false}
 					return self
 				else
 					error( 'Override ' .. tostringx( self ) .. ' with same predicates ' .. tostringx( predicates ))
 				end
 			end
+			
+			if meta then
+				if meta.before and equal( predicates, meta.before ) then
+					table.insert( PredicateDispatchFunctions[self], i, {predicates,func,meta or false} )
+					return self
+				end
+
+				if meta.after and equal( predicates, meta.after ) then
+					table.insert( PredicateDispatchFunctions[self], i+1, {predicates,func,meta or false} )
+					return self
+				end
+			end
 		end
 		
-		fs[n+1] = predicates
-		fs[n+2] = func
-		fs[n+3] = meta or false
+		fs[n+1] = {predicates,func,meta}
 	end
 	return self
 end
 
-local function callMultipleDispatch( self, ... )
-	local fs = MultipleDispatchFunctions[self]
-	for i = 1, #fs, 3 do
-		if equal( {...}, fs[i] ) then
-			return fs[i+1]( ... )
+local function callPredicateDispatch( self, ... )
+	local fs = PredicateDispatchFunctions[self]
+	for i = 1, #fs do
+		local f = fs[i]
+		if equal( {...}, f[1] ) then
+			return f[2]( ... )
 		end
 	end
 	error( 'No appropriate function implementation found!' .. '\nFunc:' .. tostringx( self ) .. '\nArgs:' .. tostringx(...) )
 end
 
-MultipleDispatchMt = {
-	__index = MultipleDispatch, 
-	__call = callMultipleDispatch
+PredicateDispatchMt = {
+	__index = PredicateDispatch, 
+	__call = callPredicateDispatch
 }
 
 GeneratorMt = {__index = Generator}

@@ -6,17 +6,17 @@ local function assertq( a, b )
 		print( sl.tostring( a ) )
 		print('NOT EQUAL TO')
 		print( sl.tostring( b ))
-		error()
+		assert( nil )
 	end
 end
 
+assert( not sl.equal( {1,2,3,4,5,6}, {1,2,3,sl._,8,9} ), 'equal function is broken!')
 assertq( 1, 1 )
 assertq( {1,2}, {1,2} )
 assertq( {1,2,x = 1}, {1,2,x = 1} )
 assertq( {1,2,3,4}, {1,2,sl._,4} )
 assertq( {1,2,3,4,5,6}, {1,2,3,sl.___} )
 assertq( {1,2,3,4,5,6}, {1,2,3,sl._,5,sl._} )
-assert( not sl.equal( {1,2,3,4,5,6}, {1,2,3,sl._,8,9} ))
 assertq( {1,2,3,4,5,6,7}, {1,2,sl._,4,5,sl.___} )
 
 assertq( sl.range(10):toarray(), {1,2,3,4,5,6,7,8,9,10} )
@@ -117,25 +117,27 @@ assertq( sl.match({1,2,3,4,5},
 
 assertq( sl.wrap{1,'x',5,6,{1}}:sort( sl.ltall ), {1,5,6,'x',{1}} ) 
 
-local N = 10
+local N = 30
 
 local factorial = sl.dispatch()
 
-factorial:def( {1}, 
-	function( _ )
-		return 1
-	end)
+factorial:def( {1}, function( _ )
+	return 1
+end)
 
-factorial:def( {sl.N},
-	function( n )
-		return n * factorial( n - 1 )
-	end)
+factorial:def( {2}, function( _ )
+	return 2*factorial(1)
+end)
+
+factorial:def( {sl.N}, function( n )
+	return n * factorial( n - 1 )
+end)
 
 local t1
 
 t1 = os.clock()
 print( factorial( N ))
-print( 'Multiple dispatch:', os.clock() - t1 )
+print( 'Predicate dispatch:', os.clock() - t1 )
 
 local function factTailRec( n, acc )
 	if n <= 1 then
